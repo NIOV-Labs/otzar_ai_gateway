@@ -13,6 +13,7 @@ click==8.2.1
 colorama==0.4.6
 cryptography==45.0.5
 dataclasses-json==0.6.7
+ddgs==9.5.2
 distro==1.9.0
 dnspython==2.7.0
 email_validator==2.2.0
@@ -41,6 +42,7 @@ langgraph-checkpoint==2.1.1
 langgraph-prebuilt==0.6.2
 langgraph-sdk==0.2.0
 langsmith==0.4.8
+lxml==6.0.0
 markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 marshmallow==3.26.1
@@ -54,6 +56,7 @@ openai==1.98.0
 orjson==3.11.1
 ormsgpack==1.10.0
 packaging==25.0
+primp==0.15.0
 propcache==0.3.2
 pycparser==2.22
 pydantic==2.11.7

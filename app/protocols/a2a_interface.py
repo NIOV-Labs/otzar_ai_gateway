@@ -9,8 +9,8 @@ consistent and the system is modular.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
-from state.graph_state import AgentTask
+from typing import Any, Dict, AsyncGenerator
+from app.state.graph_state import AgentTask
 
 class AgentInterface(ABC):
     """
@@ -40,5 +40,18 @@ class AgentInterface(ABC):
 
         Returns:
             The result of the task execution.
+        """
+        pass
+
+    @abstractmethod
+    async def stream_task(self, task: AgentTask) -> AsyncGenerator[str, None]:
+        """
+        Streams the execution of a task in real-time.
+
+        Args:
+            task: An AgentTask object containing all necessary information.
+
+        Yields:
+            String chunks of the task execution output.
         """
         pass

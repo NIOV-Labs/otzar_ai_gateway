@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Agent Stream</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background-color: #f4f4f9; margin: 40px; }
+        #container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        input { width: calc(100% - 100px); padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 15px; border: none; background-color: #007bff; color: white; border-radius: 4px; cursor: pointer; }
+        #response-box { margin-top: 20px; padding: 15px; border: 1px solid #eee; border-radius: 4px; background: #fafafa; min-height: 100px; white-space: pre-wrap; line-height: 1.6; }
+    </style>
+</head>
+<body>
+
+<div id="container">
+    <h1>Master AI Agent</h1>
+    <form id="query-form">
+        <input type="text" id="query-input" placeholder="Ask the agent anything..." required>
+        <button type="submit">Ask</button>
+    </form>
+    
+    <h3>Agent's Response:</h3>
+    <div id="response-box"></div>
+</div>
+
+<script>
+    const form = document.getElementById('query-form');
+    const input = document.getElementById('query-input');
+    const responseBox = document.getElementById('response-box');
+    let evtSource;
+
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        // Clear previous response and close any existing connection
+        responseBox.innerHTML = '';
+        if (evtSource) {
+            evtSource.close();
+        }
+        
+        const query = input.value;
+        const encodedQuery = encodeURIComponent(query);
+
+        // 1. Create a new EventSource to connect to our streaming endpoint
+        evtSource = new EventSource(`http://localhost:8000/api/v1/tasks/stream?query=${encodedQuery}`);
+
+        // 2. Handle incoming messages (the "data:" chunks)
+        evtSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            // 3. Check for our special [DONE] message to close the stream
+            if (data.token === '[DONE]') {
+                evtSource.close();
+                return;
+            }
+            if (data.error) {
+                responseBox.innerHTML += `<span style="color: red;">Error: ${data.error}</span>`;
+                evtSource.close();
+                return;
+            }
+
+            // 4. Append the received token to our response box
+            responseBox.innerHTML += data.token;
+        };
+
+        // 5. Handle any errors with the connection
+        evtSource.onerror = function(err) {
+            console.error("EventSource failed:", err);
+            responseBox.innerHTML += `<span style="color: red;">\nConnection error.</span>`;
+            evtSource.close();
+        };
+    });
+</script>
+
+</body>
+</html>
