@@ -27,7 +27,12 @@ def create_task(
         task_id = agent_service.create_new_task(request.input)
 
         # Add the long-running agent workflow to the background tasks
-        background_tasks.add_task(agent_service.start_agent_workflow, task_id, request.input)
+        background_tasks.add_task(
+            agent_service.start_agent_workflow,
+            task_id, 
+            request.input,
+            request.context_id
+        )
         
         return TaskCreationResponse(task_id=task_id, status="PENDING")
 

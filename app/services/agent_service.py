@@ -2,11 +2,11 @@
 Service layer for initializing and running the agent workflow.
 """
 
-from re import A
 import uuid
 from langgraph.graph import StateGraph, END
 from uuid import UUID
 import json
+from typing import Optional
 
 from app.state.graph_state import MasterAgentState, AgentTask
 from app.agents.child_agents.research_agent import ResearchAgent
@@ -41,11 +41,12 @@ master_agent = MasterAgent(agent_registry)
 workflow = StateGraph(MasterAgentState)
 
 # Add the nodes to the graph
+workflow.add_node("parse_user_request", master_agent.parse_user_request) 
 workflow.add_node("delegate_task", master_agent.delegate_task)
 workflow.add_node("execute_child_task", master_agent.execute_child_task)
 
 # Set the entry point of the graph
-workflow.set_entry_point("delegate_task")
+workflow.set_entry_point("parse_user_request")
 
 # Add edges to define the flow
 workflow.add_edge("delegate_task", "execute_child_task")
@@ -61,6 +62,10 @@ workflow.add_edge("delegate_task", "execute_child_task")
 #     }
 # )
 # For our simple one-shot case, we will just end after the first execution.
+
+# Define the new flow
+workflow.add_edge("parse_user_request", "delegate_task")
+workflow.add_edge("delegate_task", "execute_child_task")
 workflow.add_edge("execute_child_task", END)
 
 
@@ -70,7 +75,7 @@ app_graph = workflow.compile()
 
 
 # --- Service Functions ---
-def start_agent_workflow(task_id: UUID, user_input: str):
+def start_agent_workflow(task_id: UUID, user_input: str, context_id: Optional[str]):
     """
     The function that will be run in the background.
     It executes the agent graph and updates the state in our "DB".
@@ -80,6 +85,9 @@ def start_agent_workflow(task_id: UUID, user_input: str):
     # Set the initial state for the run
     initial_state = {
         "original_request": user_input,
+        "context_id": context_id,
+        "retrieved_context": None,
+        "parsed_instructions": None,
         "decomposed_tasks": [],
         "action_history": [],
         "final_result": None,

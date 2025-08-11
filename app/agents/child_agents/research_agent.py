@@ -108,3 +108,6 @@ class ResearchAgent(AgentInterface):
                     if message_chunk.content:
                         # Yield the content part of the chunk
                         yield message_chunk.content
+                        print(f"--- ResearchAgent: Streamed chunk: {message_chunk.content} ---")
+                        print(message_chunk)
+                        print(chunk)

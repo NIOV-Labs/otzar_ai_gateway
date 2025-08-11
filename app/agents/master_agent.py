@@ -5,8 +5,13 @@ Defines the graph-based Master Agent for orchestrating child agents.
 """
 import uuid
 from typing import Dict
+from langchain_openai import AzureChatOpenAI
+from langchain.prompts import ChatPromptTemplate
+from app.core.config import settings
 from app.state.graph_state import MasterAgentState, AgentTask
 from app.protocols.a2a_interface import AgentInterface
+from app.api.v1.schemas.context import ParsedInstructions
+from app.services.context_service import get_context
 
 class MasterAgent:
     """
@@ -22,6 +27,39 @@ class MasterAgent:
             agent_registry: A dictionary mapping agent names to agent instances.
         """
         self.agent_registry = agent_registry
+        # The "Meta Agent" for parsing instructions
+        self.instruction_parser = AzureChatOpenAI(
+            model=settings.AZURE_OPENAI_03_MINI_DEPLOYMENT_NAME,
+            temperature=0,
+            api_key=settings.AZURE_OPENAI_API_KEY,
+            api_version="2024-02-15",
+            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+        ).with_structured_output(ParsedInstructions)
+        self.prompt_template = ChatPromptTemplate.from_messages([
+            ("system", "You are an expert at deconstructing user requests into actionable components. Analyze the user's input and extract the core task, any specified persona, formatting requirements, and constraints. Do not attempt to answer the user's request, only parse it."),
+            ("human", "User Request", "{input}"),
+        ])
+        self.parser_chain = self.prompt_template | self.instruction_parser
+
+    def parse_user_request(self, state: MasterAgentState) -> MasterAgentState:
+        """NEW ENTRY NODE: Parses the user request and fetches context."""
+        print("--- MasterAgent: Parsing user request ---")
+        request = state['original_request']
+        context_id = state['context_id']
+
+        # Parse instructions
+        parsed_instructions = self.parser_chain.invoke({"input": request})
+        state['parsed_instructions'] = parsed_instructions
+
+        # Retrieve context if requested
+        if context_id:
+            context = get_context(context_id)
+            if context:
+                state['received_context'] = context['content']
+                print(f"--- MasterAgent: Successfully retrieved context '{context_id}' ---")
+
+        return state
+
 
     def delegate_task(self, state: MasterAgentState) -> MasterAgentState:
         """
@@ -30,17 +68,35 @@ class MasterAgent:
         Note: For this initial version, we will do a simple 1:1 delegation.
         A more advanced version would involve more complex decomposition logic.
         """
-        print("--- MasterAgent: Delegating task ---")
-        original_request = state['original_request']
-        
-        # Simple routing: For now, we assume all tasks go to the ResearchAgent.
-        # An advanced router would use an LLM call to select the best agent.
+        print("--- MasterAgent: Delegating task with dynamic prompt ---")
+        # For now, we still route to ResearchAgent. A smarter router could use
+        # the parsed_instructions to choose an agent.
+
         agent_name = "ResearchAgent"
+
+        # --- DYNAMIC PROMPT ASSEMBLY ---
+        parsed = state['parsed_instructions']
+        final_instructions_for_agent = (
+            f"Here is the core task you must complete: {parsed.core_task}.\n\n"
+            f"Adhere to the following persona: {parsed.persona}.\n"
+            f"Follow these formatting requirements: {parsed.format_instructions}.\n"
+            f"Obey these constraints: {parsed.constraints}.\n"
+        )
+
+        # Add the retrieved context, if it exists, to the instructions.
+        if state.get('received_context'):
+            final_instructions_for_agent += (
+                "\n--- IMPORTANT CONTEXT TO USE ---\n"
+                f"{state['received_context']}\n"
+                "--- END OF CONTEXT ---\n"
+            )
+
+        # Create the task
 
         task = AgentTask(
             task_id=uuid.uuid4(),
-            task="Initial Research Task",
-            instructions=original_request,
+            task=f"Dynamically Assembled Research Task",
+            instructions=final_instructions_for_agent,
             agent_name=agent_name,
             status="pending",
             dependencies=[],

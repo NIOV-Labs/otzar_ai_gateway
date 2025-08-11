@@ -9,6 +9,7 @@ from uuid import UUID
 class TaskCreationRequest(BaseModel):
     """The request model for creating a new agent task."""
     input: str
+    context_id: Optional[str] = None # <-- New optional field
     
 class TaskCreationResponse(BaseModel):
     """The response model after successfully creating a task."""

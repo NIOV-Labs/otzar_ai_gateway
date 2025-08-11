@@ -11,6 +11,7 @@ serializable, robust, and easily debuggable.
 
 from typing import TypedDict, List, Dict, Any, Optional
 from uuid import UUID
+from app.api.v1.schemas.context import ParsedInstructions
 
 class AgentTask(TypedDict):
     """
@@ -36,8 +37,12 @@ class MasterAgentState(TypedDict):
     trail of the agent's reasoning process.
     """
     original_request: str               # The initial request from the user
-    decomposed_tasks: List[AgentTask]   # The list of tasks delegated to child agents
+    context_id: Optional[str]    # The context ID for the task
+    received_context: Optional[ParsedInstructions] # The context received from the context store, To store the fetched context content
     
+    parsed_instructions: Optional[ParsedInstructions] # The parsed instructions from the user's request, The output of our new node
+    
+    decomposed_tasks: List[AgentTask]   # The list of tasks delegated to child agents
     # A log of all actions taken by all agents, for full traceability.
     action_history: List[Dict[str, Any]] 
     
