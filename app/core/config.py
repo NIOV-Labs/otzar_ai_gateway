@@ -37,16 +37,29 @@ class Settings(BaseSettings):
     # REDIS_PASSWORD: Optional[str] = None
     # REDIS_DB: int = 0
 
-    #   # Kafka settings
-    # KAFKA_BOOTSTRAP_SERVERS: str
+      # Kafka settings
+    KAFKA_BOOTSTRAP_SERVERS: str # e.g., "kafka-12345-project.aivencloud.com:12345"
     # KAFKA_INCOMING_MESSAGES_TOPIC: str
 
-    # # Redis settings
-    # REDIS_URL: str
+    # SSL Certificate paths (for client certificate authentication)
+    KAFKA_SSL_CAFILE: Optional[str] = None      # Path to CA certificate
+    KAFKA_SSL_CERTFILE: Optional[str] = None    # Path to client certificate
+    KAFKA_SSL_KEYFILE: Optional[str] = None     # Path to client key
 
-    # # MongoDB settings
-    # MONGO_URL: str
-    # MONGO_DB_NAME: str
+    # SASL Authentication (alternative to certificates)
+    KAFKA_USERNAME: Optional[str] = None
+    KAFKA_PASSWORD: Optional[str] = None
+    KAFKA_SASL_MECHANISM: str = "PLAIN"  # or "SCRAM-SHA-256", "SCRAM-SHA-512"
+    
+    # Kafka Security Protocol
+    KAFKA_SECURITY_PROTOCOL: str = "SSL"  # or "SASL_SSL" if using SASL
+
+    # Redis settings
+    REDIS_URL: str
+
+    # MongoDB settings
+    MONGO_URL: str
+    MONGO_DB_NAME: str
 
     # # Redis session storage
     # REDIS_SESSION_STORAGE: bool = False

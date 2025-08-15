@@ -2,12 +2,13 @@
 import os
 from celery import Celery
 from app.services import agent_service
+from app.core.config import settings
 
 # Initialize Celery, using Redis as the message broker.
 celery_app = Celery(
     'tasks',
-    broker=os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
-    backend=os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+    broker=settings.REDIS_URL,
+    backend=settings.REDIS_URL
 )
 celery_app.conf.update(
     task_track_started=True,

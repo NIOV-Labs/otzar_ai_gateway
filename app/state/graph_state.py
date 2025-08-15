@@ -21,6 +21,7 @@ class AgentTask(TypedDict):
     complex problem.
     """
     task_id: UUID       # Unique identifier for the task
+    conversation_id: str # The conversation ID for the task
     task: str           # The natural language description of the task
     instructions: str   # Specific instructions for the agent
     agent_name: str     # The designated agent to handle the task
@@ -38,11 +39,14 @@ class MasterAgentState(TypedDict):
     """
     original_request: str               # The initial request from the user
     context_id: Optional[str]    # The context ID for the task
+    conversation_id: Optional[str] # The conversation ID for the task
     received_context: Optional[ParsedInstructions] # The context received from the context store, To store the fetched context content
     
     parsed_instructions: Optional[ParsedInstructions] # The parsed instructions from the user's request, The output of our new node
+    chosen_agent_name: Optional[str] # The name of the agent that was chosen to handle the task
     
     decomposed_tasks: List[AgentTask]   # The list of tasks delegated to child agents
+    child_results: Optional[List[Dict[str, Any]]]  #  Results from child agents
     # A log of all actions taken by all agents, for full traceability.
     action_history: List[Dict[str, Any]] 
     

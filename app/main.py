@@ -3,15 +3,56 @@
 """
 Main FastAPI application file. AI Agent system.
 """
+import asyncio
 import os
+from pymongo import AsyncMongoClient
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.core.db_client import db_client
+from app.services.agent_service import get_agent_service
+from app.services.result_ingestor import create_result_ingestor_service
+from app.workers.agent_worker import create_worker
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize MongoDB Client
+    mongo_client = AsyncMongoClient(settings.MONGO_URL)
+    app.state.mongo_client = mongo_client
+    print("--- MongoDB Client Initialized ---")
+
+    agent_service = get_agent_service()
+    app.state.agent_service = agent_service
+    print("--- Agent Service Initialized ---")
+
+    worker = create_worker()
+    app.state.worker = worker
+    worker_task = asyncio.create_task(worker.start())
+    print("--- Agent Worker Started ---")
+
+    result_ingestor = create_result_ingestor_service()
+    app.state.result_ingestor = result_ingestor
+    ingestor_task = asyncio.create_task(result_ingestor.start())
+    print("--- Result Ingestor Started ---")
+
+    yield # close can be async
+
+    await app.state.mongo_client.close()
+    print("--- MongoDB Client Closed ---")
+    await app.state.agent_service.stop()
+    print("--- Agent Service Closed ---")
+
+    # Stop worker and ingestor
+    worker_task.cancel()
+    ingestor_task.cancel()
+    print("--- Worker and Ingestor Stopped ---")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version="1.0.0",
+    lifespan=lifespan,
     # openapi_url="/api/v1/openapi.json",
     # docs_url="/api/v1/docs",
     # redoc_url="/api/v1/redoc"
@@ -28,25 +69,6 @@ app.add_middleware(
 
 app.include_router(api_router, prefix="/api/v1")
 
-# # --- Execution ---
-# if __name__ == "__main__":
-#     # Define the initial state for the invocation
-#     initial_state = {
-#         "original_request": "What is LangGraph and how does it compare to LangChain?",
-#         "decomposed_tasks": [],
-#         "action_history": [],
-#         "final_result": None,
-#         "next_agent": None
-#     }
-
-#     # Invoke the graph and stream the output
-#     print("Invoking the Master Agent... \n")
-#     final_state = app.invoke(initial_state)
-
-#     print("\n--- Final Result ---")
-#     # The final result is in the last completed task
-#     final_answer = final_state['decomposed_tasks'][-1]['result']
-#     print(final_answer)
 
 @app.get("/", tags=["Root"])
 def root():
