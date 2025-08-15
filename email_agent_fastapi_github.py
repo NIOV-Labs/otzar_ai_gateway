@@ -1,18 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Aug 15 21:45:44 2025
 
-@author: carousell
-"""
-
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Aug 14 21:55:57 2025
-
-@author: carousell
-"""
 
 # email_agent_api.py
 import os
