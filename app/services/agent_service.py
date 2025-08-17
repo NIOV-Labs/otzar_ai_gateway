@@ -129,7 +129,8 @@ class AgentWorkflowService:
                 "wait_for_results",
                 self.master_agent.router,
                 {
-                    "wait_for_results": "wait_for_results", # Self-loop for waiting
+                    # "wait_for_results": "wait_for_results", # Self-loop for waiting
+                    "wait_for_results": END, # Pause run instead of self-logging
                     "process_results": "process_results",
                     "end": END
                 }
@@ -274,7 +275,7 @@ class AgentWorkflowService:
             }
             
             # Configuration for LangGraph state management
-            config = {"configurable": {"thread_id": conversation_id}}
+            config = {"configurable": {"thread_id": conversation_id}, "recursion_limit": 50}
             
             # Execute the workflow
             await self.app_graph.ainvoke(initial_state, config=config)
@@ -384,37 +385,51 @@ class AgentWorkflowService:
             raise AgentServiceError(f"AI responses retrieval failed: {e}")
 
     # TODO: Remove this function but check first - LangGraph handles this automatically
-    # async def continue_workflow(self, conversation_id: str, config: Dict[str, Any]):
-    #     """
-    #     Manually continue a workflow from a checkpoint.
+    async def continue_workflow(self, conversation_id: str) -> None:
+        """
+        Manually continue a workflow from a checkpoint.
         
-    #     Args:
-    #         conversation_id: The conversation ID
-    #         config: The LangGraph config
-    #     """
-    #     try:
-    #         logger.info(f"🔄 Manually continuing workflow for {conversation_id}")
+        Args:
+            conversation_id: The conversation ID
+           
+        """
+        await self._ensure_initialized()
+        try:
+            logger.info(f"🔄 Manually continuing workflow for {conversation_id}")
+            # logger.info(f"🔁 Continuing workflow: {conversation_id}")
+            config = {"configurable": {"thread_id": conversation_id}, "recursion_limit": 50}
             
-    #         # Get the current checkpoint
-    #         checkpoint_tuple = await self.checkpoint_saver.aget_tuple(config)
+            # Get the current checkpoint
+            checkpoint_tuple = await self.checkpoint_saver.aget_tuple(config)
             
-    #         if not checkpoint_tuple:
-    #             logger.warning(f"No checkpoint found for conversation {conversation_id}")
-    #             return
+            if not checkpoint_tuple:
+                logger.warning(f"No checkpoint found for conversation {conversation_id} to continue")
+                return
             
-    #         # Continue the workflow from the checkpoint
-    #         async for chunk in self.app_graph.astream(
-    #             checkpoint_tuple.checkpoint,
-    #             config=config
-    #         ):
-    #             # Process the chunk if needed
-    #             logger.debug(f"Workflow chunk: {chunk}")
+            # Continue the workflow from the checkpoint
+            # async for chunk in self.app_graph.astream(
+            #     checkpoint_tuple.checkpoint,
+            #     config=config
+            # ):
+            #     # Process the chunk if needed
+            #     logger.debug(f"Workflow chunk: {chunk}")
+
+            # Unwrap DequeCheckpoint to get the raw state
+            checkpoint = checkpoint_tuple.checkpoint
+            if hasattr(checkpoint, 'data'):
+                # It's a DequeCheckpoint, extract the data
+                state = checkpoint.data
+            else:
+                # It's already a raw state dict
+                state = checkpoint
+
+            await self.app_graph.ainvoke(state, config=config)
             
-    #         logger.info(f"✅ Workflow continued successfully for {conversation_id}")
+            logger.info(f"✅ Workflow continued successfully for {conversation_id}")
             
-    #     except Exception as e:
-    #         logger.error(f"❌ Failed to continue workflow for {conversation_id}: {e}")
-    #         raise AgentServiceError(f"Workflow continuation failed: {e}")
+        except Exception as e:
+            logger.error(f"❌ Failed to continue workflow for {conversation_id}: {e}")
+            raise AgentServiceError(f"Workflow continuation failed: {e}")
     
 
     async def list_tasks(self, limit: int = 50, skip: int = 0, status_filter: Optional[str] = None) -> list:

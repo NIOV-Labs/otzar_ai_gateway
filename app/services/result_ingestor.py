@@ -20,7 +20,8 @@ from aiokafka.errors import KafkaError
 
 from app.core.config import settings
 from app.core.db_client import db_client
-from app.state.mongo_checkpoint import MongoCheckpoint
+from app.state.mongo_checkpoint import MongoCheckpoint, DequeCheckpoint
+from app.services.agent_service import get_agent_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -219,6 +220,13 @@ class ResultIngestorService:
 
                 # Remove the workflow continuation call - LangGraph handles this automatically
                 # await self._trigger_workflow_continuation(conversation_id, config)
+                # Trigger workflow continuation now that state changed
+                try:
+                    agent_service = await get_agent_service()
+                    await agent_service.continue_workflow(conversation_id)
+                    logger.info(f"▶️ Continued workflow for conversation {conversation_id}")
+                except Exception as e:
+                    logger.warning(f"Could not continuw workflow automatically for {conversation_id}")
             else:
                 logger.warning(f"Failed to update checkpoint state for {conversation_id}")
                 
@@ -249,13 +257,32 @@ class ResultIngestorService:
             bool: True if update was successful, False otherwise
         """
         try:
-            # Check if decomposed_tasks exists in checkpoint
-            if "channel_values" not in checkpoint or "decomposed_tasks" not in checkpoint["channel_values"]:
-                logger.warning("No decomposed_tasks found in checkpoint")
-                return False
+            # # Check if decomposed_tasks exists in checkpoint
+            # if "channel_values" not in checkpoint or "decomposed_tasks" not in checkpoint["channel_values"]:
+            #     logger.warning("No decomposed_tasks found in checkpoint")
+            #     return False
                 
-            decomposed_tasks = checkpoint["channel_values"]["decomposed_tasks"]
+            # decomposed_tasks = checkpoint["channel_values"]["decomposed_tasks"]
             
+            # if not decomposed_tasks:
+            #     logger.warning("Empty decomposed_tasks in checkpoint")
+            #     return False
+
+            # Unwrap DequeCheckpoint to raw state dict when needed
+            state = checkpoint.data if isinstance(checkpoint, DequeCheckpoint) else checkpoint
+            if not isinstance(state, dict):
+                logger.warning(f"Unexpected checkpoint type: {type(checkpoint)}")
+                return False
+
+            # Prefer channel_values if present; otherwise operate directly on state
+            channel_values = state.get("channel_values", state)
+
+            # Validate structure
+            if "decomposed_tasks" not in channel_values:
+                logger.warning("No decomposed tasks found in checkpoint")
+                return False
+
+            decomposed_tasks = channel_values["decomposed_tasks"]
             if not decomposed_tasks:
                 logger.warning("Empty decomposed_tasks in checkpoint")
                 return False
@@ -284,8 +311,8 @@ class ResultIngestorService:
             pending_tasks = [t for t in decomposed_tasks if t.get("status") == "pending"]
             if not pending_tasks:
                 # All tasks are completed, set next_agent to process_results
-                if "next_agent" not in checkpoint["channel_values"]:
-                    checkpoint["channel_values"]["next_agent"] = "process_results"
+                if "next_agent" not in channel_values:
+                    channel_values["next_agent"] = "process_results"
                     logger.info(f"🔄 All tasks are completed, setting next_agent to process_results")
                 # else:
                 #     logger.info(f"✅ All tasks are completed, next_agent is already set to {checkpoint['channel_values']['next_agent']}")
